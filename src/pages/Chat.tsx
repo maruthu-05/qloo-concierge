@@ -30,25 +30,23 @@ const Chat = () => {
   const [input, setInput] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [userPreferences, setUserPreferences] = useState<Record<string, string[]>>({});
 
-  const handleOnboardingComplete = (preferences: Record<string, string[]>) => {
+  const handleOnboardingComplete = (preferences: Record<string, string[]>, aiResponse?: any) => {
+    setUserPreferences(preferences);
     setShowOnboarding(false);
+    
+    // Use AI response if available, otherwise fallback
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'bot',
-      content: `Perfect! I've learned about your tastes in ${Object.keys(preferences).join(', ')}. Now I can give you personalized recommendations. What would you like to explore today?`,
-      recommendations: [
+      content: aiResponse?.message || `Perfect! I've learned about your tastes in ${Object.keys(preferences).join(', ')}. Now I can give you personalized recommendations. What would you like to explore today?`,
+      recommendations: aiResponse?.recommendations || [
         {
-          title: "Cozy Jazz Cafe",
-          category: "Restaurant",
-          description: "A perfect spot for jazz lovers who enjoy intimate dining",
-          confidence: 0.92
-        },
-        {
-          title: "Indie Film Festival",
-          category: "Event",
-          description: "Curated selection of independent films",
-          confidence: 0.88
+          title: "Personalized Recommendations",
+          category: "Coming Up",
+          description: "Based on your unique taste profile",
+          confidence: 0.9
         }
       ]
     };
@@ -68,36 +66,47 @@ const Chat = () => {
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response with recommendations
-    setTimeout(() => {
+    try {
+      const response = await fetch('https://ezwrbkbdnygxoqwanwgv.supabase.co/functions/v1/chat-ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: input,
+          preferences: userPreferences
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: "Based on your taste profile, here are some recommendations I think you'll love:",
-        recommendations: [
-          {
-            title: "Midnight Diner",
-            category: "Restaurant",
-            description: "Late-night Japanese comfort food that matches your taste for authentic, intimate experiences",
-            confidence: 0.94
-          },
-          {
-            title: "Amelie",
-            category: "Film",
-            description: "A whimsical French film perfect for your love of artistic storytelling",
-            confidence: 0.91
-          },
-          {
-            title: "Bon Iver",
-            category: "Music",
-            description: "Atmospheric indie folk that aligns with your musical preferences",
-            confidence: 0.89
-          }
-        ]
+        content: data.response || "I'm here to help you discover amazing recommendations!",
+        recommendations: data.recommendations || []
       };
+      
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      // Fallback response
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'bot',
+        content: "I'm sorry, I'm having trouble connecting right now. Please try again later!",
+        recommendations: []
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

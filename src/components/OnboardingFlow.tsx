@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { ChevronRight, ChevronLeft, Music, Film, Coffee, Plane, Shirt } from "lucide-react";
+import { ChevronRight, ChevronLeft, Music, Film, Coffee, Plane, Shirt, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface OnboardingProps {
-  onComplete: (preferences: Record<string, string[]>) => void;
+  onComplete: (preferences: Record<string, string[]>, aiResponse?: any) => void;
 }
 
 const onboardingSteps = [
@@ -65,6 +65,7 @@ const onboardingSteps = [
 export const OnboardingFlow = ({ onComplete }: OnboardingProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [preferences, setPreferences] = useState<Record<string, string[]>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const currentStepData = onboardingSteps[currentStep];
   const stepPreferences = preferences[currentStepData.id] || [];
@@ -81,11 +82,33 @@ export const OnboardingFlow = ({ onComplete }: OnboardingProps) => {
     }));
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     if (currentStep < onboardingSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      onComplete(preferences);
+      setIsLoading(true);
+      try {
+        const response = await fetch('https://ezwrbkbdnygxoqwanwgv.supabase.co/functions/v1/process-onboarding', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ preferences }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to process onboarding');
+        }
+
+        const data = await response.json();
+        onComplete(preferences, data);
+      } catch (error) {
+        console.error('Onboarding error:', error);
+        // Fallback to original behavior
+        onComplete(preferences);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -154,10 +177,19 @@ export const OnboardingFlow = ({ onComplete }: OnboardingProps) => {
             
             <Button 
               onClick={nextStep}
-              disabled={!canProceed}
+              disabled={!canProceed || isLoading}
             >
-              {isLastStep ? 'Complete' : 'Next'}
-              {!isLastStep && <ChevronRight className="h-4 w-4 ml-2" />}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  {isLastStep ? 'Complete' : 'Next'}
+                  {!isLastStep && <ChevronRight className="h-4 w-4 ml-2" />}
+                </>
+              )}
             </Button>
           </div>
         </CardContent>
