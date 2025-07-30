@@ -54,7 +54,7 @@ serve(async (req) => {
         const response = await fetch(`https://staging.api.qloo.com/v2/insights?filter.type=${preferenceMap[category]}&query=${encodeURIComponent(entities[0])}`, {
           method: 'GET',
           headers: {
-            'X-Api-Key': "api key",
+            'X-Api-Key': Deno.env.get('QLOO_API_KEY'),
             'Content-Type': 'application/json',
           },
         });

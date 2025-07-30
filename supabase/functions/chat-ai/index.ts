@@ -46,7 +46,7 @@ serve(async (req) => {
     const queueResponse = await fetch(`https://staging.api.qloo.com/v2/insights?query=${encodeURIComponent(message)}`, {
       method: 'GET',
       headers: {
-        'X-Api-Key': "api key",
+        'X-Api-Key': Deno.env.get('QLOO_API_KEY'),
         'Content-Type': 'application/json',
       },
     });
@@ -102,7 +102,7 @@ async function generateRecommendations(message: string, preferences?: any) {
       const response = await fetch(`https://staging.api.qloo.com/v2/insights?filter.type=${entityType}&query=${encodeURIComponent(message)}`, {
         method: 'GET',
         headers: {
-          'X-Api-Key': "api key",
+          'X-Api-Key': Deno.env.get('QLOO_API_KEY'),
           'Content-Type': 'application/json',
         },
       });
