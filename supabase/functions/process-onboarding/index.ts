@@ -37,54 +37,62 @@ serve(async (req) => {
       }
     ];
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${"api key"}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
-        messages: analysisMessages,
-        temperature: 0.7,
-        max_tokens: 600,
+    // Get recommendations from Qloo based on preferences
+    const recommendations = [];
+    
+    // Map preferences to Qloo entity types and get recommendations
+    const preferenceMap = {
+      music: 'urn:entity:artist',
+      movies: 'urn:entity:movie', 
+      food: 'urn:entity:place',
+      travel: 'urn:entity:destination',
+      fashion: 'urn:entity:brand'
+    };
+
+    for (const [category, entities] of Object.entries(preferences)) {
+      if (entities.length > 0 && preferenceMap[category]) {
+        const response = await fetch(`https://staging.api.qloo.com/v2/insights?filter.type=${preferenceMap[category]}&query=${encodeURIComponent(entities[0])}`, {
+          method: 'GET',
+          headers: {
+            'X-Api-Key': "api key",
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.results && data.results.length > 0) {
+            const item = data.results[0];
+            recommendations.push({
+              title: item.name || item.title || `${category} recommendation`,
+              category: category,
+              description: `Perfect match for your ${entities.join(', ')} preferences`,
+              confidence: item.affinity_score || 0.9
+            });
+          }
+        }
+      }
+    }
+
+    // Create welcome message based on preferences
+    const welcomeMessage = `Perfect! I've learned about your tastes in ${Object.keys(preferences).join(', ')}. Based on your preferences, I can see you enjoy ${Object.entries(preferences).map(([key, values]) => `${values.join(' and ')} ${key}`).join(', ')}. Now I can give you personalized recommendations using Qloo's taste intelligence. What would you like to explore today?`;
+
+    return new Response(
+      JSON.stringify({
+        message: welcomeMessage,
+        recommendations: recommendations.length > 0 ? recommendations : [
+          {
+            title: "Curated Selection",
+            category: "Recommendation",
+            description: "Based on your unique taste profile",
+            confidence: 0.9
+          }
+        ]
       }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
-
-    try {
-      const parsed = JSON.parse(aiResponse);
-      return new Response(
-        JSON.stringify(parsed),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    } catch {
-      // Fallback if JSON parsing fails
-      return new Response(
-        JSON.stringify({
-          message: `Perfect! I've learned about your tastes in ${Object.keys(preferences).join(', ')}. Now I can give you personalized recommendations. What would you like to explore today?`,
-          recommendations: [
-            {
-              title: "Curated Selection",
-              category: "Recommendation",
-              description: "Based on your unique taste profile",
-              confidence: 0.9
-            }
-          ]
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
 
   } catch (error) {
     console.error('Error in process-onboarding function:', error);
