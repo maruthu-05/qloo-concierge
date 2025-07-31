@@ -67,7 +67,7 @@ const Chat = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://ezwrbkbdnygxoqwanwgv.supabase.co/functions/v1/chat-ai', {
+      const response = await fetch('/api/chat-ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

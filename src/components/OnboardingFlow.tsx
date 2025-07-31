@@ -88,7 +88,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingProps) => {
     } else {
       setIsLoading(true);
       try {
-        const response = await fetch('https://ezwrbkbdnygxoqwanwgv.supabase.co/functions/v1/process-onboarding', {
+        const response = await fetch('/api/process-onboarding', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
