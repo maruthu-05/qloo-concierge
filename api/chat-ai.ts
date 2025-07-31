@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('Received chat request:', { message, preferences });
 
     // Call Qloo API for taste-based insights
-    const queueResponse = await fetch(`https://staging.api.qloo.com/v2/insights?query=${encodeURIComponent(message)}`, {
+    const queueResponse = await fetch(`https://api.qloo.com/v2/insights/?query=${encodeURIComponent(message)}`, {
       method: 'GET',
       headers: {
         'X-Api-Key': process.env.QLOO_API_KEY!,
@@ -77,7 +77,7 @@ async function generateRecommendations(message: string, preferences?: any) {
     
     // Get recommendations for each relevant entity type
     for (const entityType of entityTypes.slice(0, 2)) { // Limit to avoid too many API calls
-      const response = await fetch(`https://staging.api.qloo.com/v2/insights?filter.type=${entityType}&query=${encodeURIComponent(message)}`, {
+      const response = await fetch(`https://api.qloo.com/v2/insights/?filter.type=${entityType}&query=${encodeURIComponent(message)}`, {
         method: 'GET',
         headers: {
           'X-Api-Key': process.env.QLOO_API_KEY!,

@@ -42,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (entities && Array.isArray(entities) && entities.length > 0) {
         try {
           // Use the first entity to get related recommendations
-          const response = await fetch(`https://staging.api.qloo.com/v2/insights?filter.type=${preferenceMap[category]}&query=${encodeURIComponent(entities[0])}`, {
+          const response = await fetch(`https://api.qloo.com/v2/insights/?filter.type=${preferenceMap[category]}&query=${encodeURIComponent(entities[0])}`, {
             method: 'GET',
             headers: {
               'X-Api-Key': process.env.QLOO_API_KEY!,
