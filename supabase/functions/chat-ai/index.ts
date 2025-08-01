@@ -22,7 +22,7 @@ serve(async (req) => {
 
     const systemPrompt = `You are Vibora, an AI assistant that provides personalized taste-based lifestyle recommendations like food, fashion, movies, or music. The user's preferences are: ${JSON.stringify(preferences)}. Respond in a helpful and friendly manner.`;
 
-    const recommendations = await generateRecommendationsWithLLM(systemPrompt, message);
+    const recommendations = await generateRecommendationsWithGemini(systemPrompt, message);
 
     return new Response(
       JSON.stringify({
@@ -43,36 +43,32 @@ serve(async (req) => {
   }
 });
 
-// Use OpenAI instead of Qloo
-async function generateRecommendationsWithLLM(systemPrompt: string, userMessage: string) {
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
+// ✅ Gemini-compatible version
+async function generateRecommendationsWithGemini(systemPrompt: string, userMessage: string) {
+  const apiKey = Deno.env.get('GOOGLE_API_KEY');
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4',  // You can change to 'gpt-3.5-turbo' if needed
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.8
+      contents: [
+        { role: "user", parts: [{ text: `${systemPrompt}\n\nUser: ${userMessage}` }] }
+      ]
     }),
   });
 
   if (!res.ok) {
     const errData = await res.json();
-    throw new Error(errData?.error?.message || 'OpenAI API call failed');
+    throw new Error(errData?.error?.message || 'Gemini API call failed');
   }
 
   const data = await res.json();
-  const content = data.choices?.[0]?.message?.content;
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
   return [{
-    title: 'LLM Recommendation',
+    title: 'Gemini Recommendation',
     category: 'General',
     description: content?.trim() || 'Based on your input and preferences.',
     confidence: 0.9
