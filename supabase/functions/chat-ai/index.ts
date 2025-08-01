@@ -20,27 +20,13 @@ serve(async (req) => {
     const { message, preferences } = await req.json();
     console.log('Received chat request:', { message, preferences });
 
-    const messages: ChatMessage[] = [
-      {
-        role: 'system',
-        content: `You are Vibora, an AI assistant giving taste-based lifestyle recommendations. User preferences: ${JSON.stringify(preferences)}.`
-      },
-      {
-        role: 'user',
-        content: message
-      }
-    ];
+    const systemPrompt = `You are Vibora, an AI assistant that provides personalized taste-based lifestyle recommendations like food, fashion, movies, or music. The user's preferences are: ${JSON.stringify(preferences)}. Respond in a helpful and friendly manner.`;
 
-    // Generate recommendations
-    const recommendations = await generateRecommendations(message, preferences);
-
-    const responseText = recommendations.length
-      ? `Great! Based on your taste profile, here are some recommendations for "${message}":`
-      : `Sorry, I couldn't find any recommendations for "${message}" based on your preferences.`;
+    const recommendations = await generateRecommendationsWithLLM(systemPrompt, message);
 
     return new Response(
       JSON.stringify({
-        response: responseText,
+        response: "Here are some personalized recommendations for you:",
         recommendations
       }),
       {
@@ -57,63 +43,38 @@ serve(async (req) => {
   }
 });
 
-async function generateRecommendations(message: string, preferences?: any) {
-  const entityMap = {
-    music: 'artist',
-    movies: 'movie',
-    food: 'place',
-    travel: 'destination',
-    fashion: 'brand'
-  };
+// Use OpenAI instead of Qloo
+async function generateRecommendationsWithLLM(systemPrompt: string, userMessage: string) {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
 
-  const apiKey = Deno.env.get('QLOO_API_KEY');
-  const recommendations = [];
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4',  // You can change to 'gpt-3.5-turbo' if needed
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.8
+    }),
+  });
 
-  for (const [prefKey, values] of Object.entries(preferences || {})) {
-    const type = entityMap[prefKey];
-    if (!type || !values?.length) continue;
-
-    // Search for Qloo entity ID
-    const searchRes = await fetch(`https://hackathon.api.qloo.com/v2/search?query=${encodeURIComponent(values[0])}&types=${type}`, {
-      method: 'GET',
-      headers: {
-        'X-Api-Key': apiKey,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!searchRes.ok) continue;
-    const searchData = await searchRes.json();
-    const entity = searchData.results?.[0];
-    if (!entity?.id) continue;
-
-    // Get recommendations via insights API
-    const insightRes = await fetch(`https://hackathon.api.qloo.com/v2/insights?signal.interests.entities=${entity.id}&filter.type=urn:entity:${type}`, {
-      method: 'GET',
-      headers: {
-        'X-Api-Key': apiKey,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!insightRes.ok) continue;
-    const insightData = await insightRes.json();
-
-    const top = insightData.results?.[0];
-    if (top) {
-      recommendations.push({
-        title: top.name || top.title || 'Recommendation',
-        category: prefKey,
-        description: `Because you like ${values[0]}`,
-        confidence: top.affinity_score || 0.9
-      });
-    }
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData?.error?.message || 'OpenAI API call failed');
   }
 
-  return recommendations.length ? recommendations : [{
-    title: 'Curated Suggestion',
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  return [{
+    title: 'LLM Recommendation',
     category: 'General',
-    description: 'Based on your profile',
-    confidence: 0.8
+    description: content?.trim() || 'Based on your input and preferences.',
+    confidence: 0.9
   }];
 }
