@@ -3,6 +3,7 @@ import { ChevronRight, ChevronLeft, Music, Film, Coffee, Plane, Shirt, Loader2 }
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingProps {
   onComplete: (preferences: Record<string, string[]>, aiResponse?: any) => void;
@@ -88,19 +89,12 @@ export const OnboardingFlow = ({ onComplete }: OnboardingProps) => {
     } else {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/process-onboarding', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ preferences }),
+        const { data, error } = await supabase.functions.invoke('process-onboarding', {
+          body: { preferences }
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to process onboarding');
-        }
+        if (error) throw error;
 
-        const data = await response.json();
         onComplete(preferences, data);
       } catch (error) {
         console.error('Onboarding error:', error);
