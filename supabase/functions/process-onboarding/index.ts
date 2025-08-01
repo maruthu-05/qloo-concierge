@@ -2,68 +2,74 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { preferences } = await req.json();
-    console.log("Received user preferences:", preferences);
+    console.log('Received user preferences:', preferences);
+
+    const apiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!apiKey) throw new Error('Gemini API Key is not set.');
 
     const categories = Object.entries(preferences)
-      .map(([category, entities]) => `${category}: ${entities.join(", ")}`)
-      .join("\n");
+      .map(([category, items]) => `${category}: ${items.join(', ')}`)
+      .join('\n');
 
     const prompt = `
-Based on the following user preferences, generate 5 personalized recommendations. Include title, category, description, and a confidence score (0.5–1.0):
+I am building a personalized recommendation assistant.
+Based on the user's preferences in various categories, suggest one top recommendation per category with:
+- Title
+- Category
+- A short description (why it is recommended)
+- A confidence score (0-1 scale)
 
+User preferences:
 ${categories}
 
-Format as JSON array like:
+Return JSON array of recommendations like:
 [
   {
-    "title": "Example",
-    "category": "music",
-    "description": "Because you like XYZ",
-    "confidence": 0.91
+    "title": "...",
+    "category": "...",
+    "description": "...",
+    "confidence": ...
   },
   ...
 ]
 `;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
+    const geminiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey, {
+      method: 'POST',
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4", // or "gpt-3.5-turbo"
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.8,
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
       }),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`OpenAI API failed: ${errText}`);
+    if (!geminiRes.ok) {
+      const errorText = await geminiRes.text();
+      throw new Error(`Gemini API error: ${geminiRes.status} ${errorText}`);
     }
 
-    const json = await response.json();
-    const reply = json.choices[0].message.content.trim();
-
+    const geminiData = await geminiRes.json();
+    const modelReply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
     let recommendations = [];
     try {
-      recommendations = JSON.parse(reply);
+      recommendations = JSON.parse(modelReply);
     } catch (e) {
-      console.warn("Could not parse GPT response:", reply);
+      console.warn("Gemini response parsing failed, sending default recommendation.");
       recommendations = [{
         title: "Curated Pick",
         category: "General",
@@ -72,19 +78,20 @@ Format as JSON array like:
       }];
     }
 
-    const welcome = `Awesome! I understand your preferences in ${Object.keys(preferences).join(", ")}. Here are some curated suggestions for you!`;
+    const welcome = `Great! I now understand your tastes in ${Object.keys(preferences).join(', ')}. Let's explore personalized recommendations based on your preferences.`;
 
-    return new Response(
-      JSON.stringify({ message: welcome, recommendations }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({
+      message: welcome,
+      recommendations
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   } catch (error) {
-    console.error("Server error:", error);
+    console.error('Error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
